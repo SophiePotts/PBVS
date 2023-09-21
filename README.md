@@ -18,8 +18,8 @@ This repository contains the code for the two presented algorithms **AICboost** 
 
 **algorithms**
 
-+ CVboost.R : Contains the code for CVboost, i.e. Algorithm 2 of the article
-+ AICboost.R : Contains the code for AICboost, i.e. Algorithm 3 of the article
++ CVboost_Pottsetal.R : Contains the code for CVboost, i.e. Algorithm 2 of the article
++ AICboost_Pottsetal.R : Contains the code for AICboost, i.e. Algorithm 3 of the article
 
 **minimal working example**
 
