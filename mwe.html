@@ -1325,6 +1325,19 @@ cross-validation on the data sets</li>
 <div id="write-function-that-simulates-data-of-different-structures-see-chapter-simulation-in-the-article" class="section level1">
 <h1>write function, that simulates data of different structures (see
 chapter “simulation” in the article)</h1>
+<ul>
+<li><span class="math inline">\(n\)</span>: number of observations for
+training</li>
+<li><span class="math inline">\(p\)</span>: number of covariates without
+intercept</li>
+<li>inf: number of informative covariates <span class="math inline">\(p=\)</span> inf <span class="math inline">\(+\)</span> noninf</li>
+<li>n_pred: number of observations for prediction after estimation
+(testing)</li>
+<li>NSR: Noise-to-signal ratio</li>
+<li>cor: correlation structure</li>
+<li>fam: family of distribution</li>
+<li>seed: seed for reproducibility</li>
+</ul>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="do">#####simulate_data function####</span></span>
 <span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>simulate_data <span class="ot">&lt;-</span> <span class="cf">function</span>(seed,</span>

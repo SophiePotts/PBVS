@@ -33,16 +33,16 @@ source("CVboost_Pottsetal.R")
 
 # write function, that simulates data of different structures (see chapter "simulation" in the article)
 
-\begin{itemize}
-  \item $n$: number of observations for training
-  \item $p$: number of covariates without intercept
-  \item inf: number of informative covariates $p=$ inf $+$ noninf
-  \item n_pred: number of observations for prediction after estimation (testing)
-  \item NSR: Noise-to-signal ratio
-  \item cor: correlation structure
-  \item fam: family of distribution
-  \item seed: seed for reproducibility
-\end{itemize}
+
+* $n$: number of observations for training
+* $p$: number of covariates without intercept
+* inf: number of informative covariates $p=$ inf $+$ noninf
+* n_pred: number of observations for prediction after estimation (testing)
+* NSR: Noise-to-signal ratio
+* cor: correlation structure
+* fam: family of distribution
+* seed: seed for reproducibility
+
 
 ```{r}
 #####simulate_data function####
