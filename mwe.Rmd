@@ -1,0 +1,342 @@
+---
+title: "Minimal working example"
+author: "Sophie Potts"
+date: "`r Sys.Date()`"
+output: rmdformats::readthedown
+---
+
+
+This document gives a minimum working example of the two algorithms AIC-boost and CV-boost which were presented in the article "Prediction-based variable selection for component-wise gradient boosting" by Sophie Potts et al. published in the International Journal of Biostatistics.
+
+The performed steps in here:
+
+
+* load the two algorithms from their R files
+* write function, that simulates data of different structures (see Chapter "simulation" in the article)
+* use function to simulate three different types of data sets
+* apply the two algorithms and the benchmark model mboost with cross-validation on the data sets
+* compare selected beta vector
+
+```{r, include=T, echo=T, warning=F, message=F}
+library(dplyr)
+library(mboost)
+library(knitr)
+
+```
+
+# load the two algorithms from their R files
+
+```{r}
+source("AICboost_Pottsetal.R")
+source("CVboost_Pottsetal.R")
+```
+
+# write function, that simulates data of different structures (see chapter "simulation" in the article)
+
+\begin{itemize}
+  \item $n$: number of observations for training
+  \item $p$: number of covariates without intercept
+  \item inf: number of informative covariates $p=$ inf $+$ noninf
+  \item n_pred: number of observations for prediction after estimation (testing)
+  \item NSR: Noise-to-signal ratio
+  \item cor: correlation structure
+  \item fam: family of distribution
+  \item seed: seed for reproducibility
+\end{itemize}
+
+```{r}
+#####simulate_data function####
+
+simulate_data <- function(seed,
+                          fam = gaussian(link = "identity"),
+                          p,
+                          n,
+                          inf,
+                          n_pred,
+                          NSR,
+                          cor = c("uncor", "toep")) {
+  
+  p <- p              # number of covariates without intercept
+  n <- n              # number of observations for training
+  inf <- inf          # number of informative covariates
+  
+  n_pred <- n_pred    # number of observations for prediction after estimation (testing)
+  n_all <- n + n_pred # number of cases to simulate
+  
+  
+  set.seed(seed)
+  NSR <- NSR
+  
+  # generate Covariance matrix of covariates
+  
+  if (cor== "uncor"){
+    Sigma <- diag(p)
+  } 
+  if (cor=="toep"){
+    Sigma <- matrix(NA, ncol=p, nrow=p)
+    
+    for (i in 1:(p)){
+      for (j in 1:(p)){
+        Sigma[i,j] <- 0.9 ^(abs(i-j)) 
+      }
+    }
+  }
+  
+  
+  # generate true beta vector, design matrix X and outcome y
+  #### gaussian
+  
+  if (fam$family=="gaussian"){
+    beta_q <- as.matrix(c(sample(c(-1,-2,-3,1,2,3), inf, replace = T), rep(0, p-inf)))
+    
+    
+    # factor to scale beta coefficients for pre-defined NSR
+    m <- as.numeric(sqrt(1/(NSR*t(beta_q)%*%Sigma%*%beta_q)))
+    
+    # scale beta and add intercept
+    beta <- rbind(1, beta_q*m)
+    
+    # draw X from MVN with correlation matrix and add intercept
+    X <- MASS::mvrnorm(n_all,mu=rep(0,ncol(Sigma)),Sigma)
+    X<-cbind(1, X)
+    
+    eps <- rnorm(n_all)
+    
+    # get the empirical NSR
+    emp_nsr <- var(eps)/var(X%*%beta)
+    
+    # outcome variable y with n_all observations
+    y <- X %*% beta + eps
+    
+  }
+  
+  #### poisson
+  if (fam$family=="poisson"){
+    beta_pool_all <- list(low=c(0.8,-0.8), 
+                      medium=c(0.4,-0.25), 
+                      high=c(0.1,-0.12))
+
+    beta_pool <- beta_pool_all[[NSR]]
+    
+    set.seed(seed)
+    beta_q <- as.matrix(c(sample(beta_pool, inf, replace = T), rep(0, p-inf)))
+    beta <- rbind(1, beta_q)
+    
+    
+    # draw X from MVN with correlation matrix and add intercept
+    # pnorm reduced values of X to [0,1] 
+    # this needs to be done to counteract exploding residuals in exp(eta)
+    X <- as.matrix(pnorm(MASS::mvrnorm(n_all,mu=rep(0,ncol(Sigma)),Sigma)))
+    X<-cbind(1, X)
+    
+    # rate parameter lambda
+    lambda <- exp(X %*% beta)
+    
+    # outcome variable y with n_all observations
+    y <- as.matrix(rpois(n_all, lambda=lambda))
+    
+  }
+  
+  #### binomial
+    if (fam$family=="binomial"){
+    beta_pool_all <- list(low=c(0.8,-0.8), 
+                        medium=c(0.4,-0.25), 
+                        high=c(0.1,-0.12))
+
+    beta_pool <- beta_pool_all[[NSR]]
+    
+    set.seed(seed)
+    beta_q <- as.matrix(c(sample(beta_pool, inf, replace = T), rep(0, p-inf)))
+    beta <- rbind(1, beta_q)
+      
+      
+    # draw X from MVN with correlation matrix and add intercept
+    X <- MASS::mvrnorm(n_all,mu=rep(0,ncol(Sigma)),Sigma)
+    X<-cbind(1, X)
+    
+    
+    # eta
+    eta <- X %*% beta
+    
+    # parameter pi
+    pr <- exp(eta)/(1+exp(eta))
+    
+    # outcome variable y with n_all observations
+    y <- as.matrix(rbinom(n_all,1,pr))
+  }
+
+  
+  # random sample of n_pred for testing (MSPE) 
+  # and corresponding design matrix X_pred and outcome variable y_pred
+  
+  pred <- sample(1:nrow(X), n_pred, replace = F)
+  X_pred <- X[pred,]
+  y_pred <- as.matrix(y[pred,])
+  
+  # design matrix with n observations
+  
+  X<- X[-pred,]
+  
+  # outcome variable with n observations
+  
+  y<- as.matrix(y[-pred,])
+  
+  #center X matrix around colmeans
+  
+  X_center <- scale(X[,-1], center = T, scale = F)
+  X <- cbind(1, X_center)
+  
+  dat <- data.frame(y,X[,-1])
+  
+  return(list(
+    X = X,
+    y = y,
+    X_pred = X_pred,
+    y_pred = y_pred,
+    dat = dat,
+    beta = beta
+  ))
+}
+```
+
+# use function to simulate three different types of data sets
+```{r}
+
+d1 <- simulate_data(seed = 2023,
+                    fam = gaussian(link="identity"),
+                    p=50,
+                    n=100,
+                    inf=10,
+                    n_pred=50,
+                    NSR=0.2,
+                    cor="toep")
+
+d2 <- simulate_data(seed = 1996,
+                    fam = poisson(link="log"),
+                    p=50,
+                    n=100,
+                    inf=5,
+                    n_pred=50,
+                    NSR="medium",
+                    cor="toep")
+
+d3 <- simulate_data(seed = 2008,
+                    fam = binomial(link="logit"),
+                    p=20,
+                    n=100,
+                    inf=5,
+                    n_pred=50,
+                    NSR="medium",
+                    cor="uncor")
+
+str(d1)
+
+```
+
+
+# apply the two algorithms and the benchmark model mboost with cross-validation on the data sets
+
+```{r, echo=T, results="hide"}
+
+
+### data set 1
+
+  cg_aic1 <- aicboost(X=d1$X,
+                     y=d1$y,
+                     family = gaussian(),
+                     beta=matrix(0, ncol=1, nrow=ncol(d1$X)),
+                     t=200, nu=0.1)
+
+  cg_cv1 <- cvboost(X=d1$X, 
+                   y=d1$y,
+                   E=10,
+                   family = gaussian(),
+                   beta=matrix(0, ncol=1, nrow=ncol(d1$X)), 
+                   t=200, nu=0.1, seed = 43)
+
+  mb_cv1 <- glmboost(y~., 
+                    data=d1$dat,
+                    family = Gaussian(),
+                    offset = mean(d1$dat$y),
+                    control=boost_control(mstop=200, nu=0.1))
+  w1<- cv(model.weights(mb_cv1), type = "kfold", B=10)
+  cv1 <- cvrisk(mb_cv1, folds=w1)
+  
+  
+### data set 2
+
+  cg_aic2 <- aicboost(X=d2$X,
+                     y=d2$y,
+                     family = poisson(link="log"),
+                     beta=matrix(0, ncol=1, nrow=ncol(d2$X)),
+                     t=400, nu=0.01)
+
+  cg_cv2 <- cvboost(X=d2$X, 
+                   y=d2$y,
+                   E=10,
+                   family = poisson(link="log"),
+                   beta=matrix(0, ncol=1, nrow=ncol(d2$X)), 
+                   t=400, nu=0.01, seed = 43)
+
+  mb_cv2 <- glmboost(y~., 
+                    data=d2$dat,
+                    family = Poisson(),
+                    offset = mean(d2$dat$y),
+                    control=boost_control(mstop=400, nu=0.01))
+  w2<- cv(model.weights(mb_cv2), type = "kfold", B=10)
+  cv2 <- cvrisk(mb_cv2, folds=w2)
+  
+### data set 3
+
+  cg_aic3 <- aicboost(X=d3$X,
+                     y=d3$y,
+                     family = binomial(link="logit"),
+                     beta=matrix(0, ncol=1, nrow=ncol(d3$X)),
+                     t=600, nu=0.1)
+
+  cg_cv3 <- cvboost(X=d3$X, 
+                   y=d3$y,
+                   E=10,
+                   family = binomial(link="logit"),
+                   beta=matrix(0, ncol=1, nrow=ncol(d3$X)), 
+                   t=600, nu=0.1, seed = 43)
+
+  mb_cv3 <- glmboost(y~., 
+                    data=d3$dat,
+                    family = Binomial(type="glm"),
+                    offset = mean(d3$dat$y),
+                    control=boost_control(mstop=600, nu=0.1))
+  w3<- cv(model.weights(mb_cv3), type = "kfold", B=10)
+  cv3 <- cvrisk(mb_cv3, folds=w3)
+    
+```
+
+
+
+# compare selected beta vector
+```{r}
+### data set 1
+
+kable(cbind(d1$beta,
+cg_aic1$beta_chain[,cg_aic1$b_iter],
+cg_cv1$beta_chain[,cg_cv1$b_iter],
+coef(mb_cv1[mstop(cv1)], off2int = T, which="")), col.names = c("true beta", "AICboost", "CVboost", "mboost_CV"), caption = "Performance on Gaussian data with NSR=0.2 and Toeplitz correlation")
+
+
+### data set 2
+
+kable(cbind(d2$beta,
+cg_aic2$beta_chain[,cg_aic2$b_iter],
+cg_cv2$beta_chain[,cg_cv2$b_iter],
+coef(mb_cv2[mstop(cv2)], off2int = T, which="")), col.names = c("true beta", "AICboost", "CVboost", "mboost_CV"), caption = "Performance on Poisson data with NSR=medium and Toeplitz correlation")
+
+
+### data set 3
+
+kable(cbind(d3$beta,
+cg_aic3$beta_chain[,cg_aic3$b_iter],
+cg_cv3$beta_chain[,cg_cv3$b_iter],
+coef(mb_cv3[mstop(cv3)], off2int = T, which="")), col.names = c("true beta", "AICboost", "CVboost", "mboost_CV"), caption = "Performance on Binomial data with NSR=medium and uncorrelated covariates")
+
+```
+
