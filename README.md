@@ -23,7 +23,7 @@ This repository contains the code for the two presented algorithms **AICboost** 
 
 **minimal working example**
 
-+ gives a minimum working example of the two algorithms AIC-boost and CV-boost
++ gives a minimal working example of the two algorithms AIC-boost and CV-boost
 	+ load the two algorithms from their R files
 	+ write function, that simulates data of different structures (see Chapter "simulation" in the article)
 	+ use function to simulate three different types of data sets
