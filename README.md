@@ -5,10 +5,10 @@ Sophie Potts, Elisabeth Bergherr, Constantin Reinke, Colin Griesbach
 
 ***
 
-<font size="4">
+
 Welcome to the code repository of the article "Prediction-based Variable Selection for Component-wise Gradient Boosting" published in the International Journal of Biostatistics.
-This repository contains the code for the two presented algorithms AICboost and CVboost as well as a minimal working example. Please find a short description of the files below.
-</font>
+This repository contains the code for the two presented algorithms **AICboost** and **CVboost** as well as a **minimal working example**. Please find a short description of the files below.
+
 
 <br>
 
